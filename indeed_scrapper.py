@@ -4,6 +4,10 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
 
+def save_to_file(filename, content):
+    with open(filename, 'w') as file:
+        file.write(content)
+
 class Job:
 	def __init__(self, title, link, company_name, location, salary, short_description):
 		self.title = title
@@ -25,13 +29,19 @@ def get_data(browser, url):
 	browser.get(url)
 	print("waiting...")
 	jobs = WebDriverWait(browser, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "jobCard_mainContent")))
+	
+	save_to_file("listings.html", browser.page_source)
 	job_instances = []
-
 	for job in jobs:
 		try:
+			print(job.get_attribute('innerHTML'))
+			
 			job_title_element = job.find_element(By.CLASS_NAME, "jobTitle")
-			job_title = job_title_element.find_element(By.TAG_NAME, "a").get_attribute("title")
+			job_title = job_title_element.text #job_title_element.find_element(By.TAG_NAME, "a").get_attribute("title")
+			job_title = job.find_element(By.CSS_SELECTOR, "h2.jobTitle a span").get_attribute("title")
+			
 			job_link = job_title_element.find_element(By.TAG_NAME, "a").get_attribute("href")
+			
 			company_name = job.find_element(By.CLASS_NAME, "companyName").text
 			location = job.find_element(By.CLASS_NAME, "companyLocation").text
 			salary_elements = job.find_elements(By.CSS_SELECTOR, ".metadata .attribute_snippet")
@@ -40,7 +50,6 @@ def get_data(browser, url):
 			short_description = " ".join([desc_elem.text for desc_elem in short_description_elements]) if short_description_elements else "Not provided"
 			
 			job_instance = Job(job_title, job_link, company_name, location, salary, short_description)
-			print(f"Company Name:{company_name}\nTitle:{job_title}\n\n")
 			job_instances.append(job_instance)
 		except Exception as e:
 			print(f"An error occurred: {e}")
