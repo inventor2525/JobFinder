@@ -1,3 +1,6 @@
+import os
+import sqlite3
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
@@ -14,17 +17,31 @@ class Job:
 		self.short_description = short_description
 		self.date_posted = date_posted
 		self.long_description = None
+		
+def sanitize_filename(filename):
+	return "".join(c for c in filename if c.isalnum() or c in (' ', '.', '_')).rstrip()
 
 class IndeedScraper:
 	def __init__(self, job, location):
 		self.job = job
 		self.location = location
 		self.base_url = f"https://www.indeed.com/jobs?q={job}&l={location}&sort=date"
+		self.start_time = datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f")
+		self.page_num = 1
 		
 		options = Options()
 		options.binary_location = '/opt/firefox/firefox'
 		self.browser = webdriver.Firefox(options=options)
 		self.next_page_available = False
+
+		# Directory structure
+		self.base_dir = f"Job_Data/{sanitize_filename(job)}/{sanitize_filename(location)}/{self.start_time}/"
+		os.makedirs(self.base_dir + "jobs", exist_ok=True)
+
+		# SQLite database
+		self.conn = sqlite3.connect(self.base_dir + "jobs.db")
+		self.cursor = self.conn.cursor()
+		self.cursor.execute('''CREATE TABLE jobs (title TEXT, link TEXT, company_name TEXT, location TEXT, salary TEXT, short_description TEXT, date_posted TEXT, long_description TEXT, date_time_loaded TEXT, full_description_html TEXT)''')
 
 	def get_long_description(self, url):
 		self.browser.get(url)
@@ -34,6 +51,10 @@ class IndeedScraper:
 	def get_10_listings(self, url):
 		print(url)
 		self.browser.get(url)
+		with open(f"{self.base_dir}page{self.page_num}.html", "w") as file:
+			file.write(self.browser.page_source)
+		self.page_num += 1
+
 		jobs = WebDriverWait(self.browser, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "jobCard_mainContent")))
 		job_instances = []
 		for job in jobs:
@@ -70,6 +91,12 @@ class IndeedScraper:
 		for job in job_instances:
 			print(f"Company:{job.company_name} Title:{job.title}")
 			job.long_description = self.get_long_description(job.link)
+			company_dir = f"{self.base_dir}jobs/{sanitize_filename(job.company_name)}/"
+			os.makedirs(company_dir, exist_ok=True)
+			with open(f"{company_dir}{sanitize_filename(job.title)} {datetime.now().strftime('%Y-%m-%d %H-%M-%S.%f')}.html", "w") as file:
+				file.write(self.browser.page_source)
+			self.cursor.execute("INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (job.title, job.link, job.company_name, job.location, job.salary, job.short_description, job.date_posted, job.long_description, datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f"), self.browser.page_source))
+			self.conn.commit()
 
 		return job_instances
 
@@ -92,7 +119,7 @@ class IndeedScraper:
 
 # Main function
 if __name__ == "__main__":
-	scraper = IndeedScraper("Software Engineer", "Remote")
+	scraper = IndeedScraper("Robotics Software Engineer", "Remote")
 	all_jobs = scraper.get_all_listings()
 	for job in all_jobs:
 		print(f"Job Title: {job.title}")
