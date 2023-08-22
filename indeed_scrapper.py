@@ -5,13 +5,14 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
 
 class Job:
-	def __init__(self, title, link, company_name, location, salary, short_description):
+	def __init__(self, title, link, company_name, location, salary, short_description, date_posted):
 		self.title = title
 		self.link = link
 		self.company_name = company_name
 		self.location = location
 		self.salary = salary
 		self.short_description = short_description
+		self.date_posted = date_posted
 		self.long_description = None
 
 class IndeedScraper:
@@ -52,7 +53,10 @@ class IndeedScraper:
 				short_description_elements = job.find_elements(By.CSS_SELECTOR, ".job-snippet ul li")
 				short_description = " ".join([desc_elem.text for desc_elem in short_description_elements]) if short_description_elements else "Not provided"
 				
-				job_instance = Job(job_title, job_link, company_name, location, salary, short_description)
+				date_element = self.browser.find_element(By.CSS_SELECTOR, "span.date")
+				date_posted = date_element.text if date_element else "Not provided"
+				
+				job_instance = Job(job_title, job_link, company_name, location, salary, short_description, date_posted)
 				job_instances.append(job_instance)
 			except Exception as e:
 				print(f"An error occurred: {e}")
@@ -65,7 +69,7 @@ class IndeedScraper:
 		# Get long descriptions
 		for job in job_instances:
 			print(f"Company:{job.company_name} Title:{job.title}")
-		# 	job_instance.long_description = self.get_long_description(job_instance.link)
+			job.long_description = self.get_long_description(job.link)
 
 		return job_instances
 
