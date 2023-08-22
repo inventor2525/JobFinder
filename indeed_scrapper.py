@@ -35,15 +35,25 @@ class IndeedScraper:
 		self.next_page_available = False
 
 		# Directory structure
-		self.base_dir = f"Job_Data/{sanitize_filename(job)}/{sanitize_filename(location)}/{self.start_time}/"
+		self.jobs_data_dir = "Job_Data/"
+		self.base_dir = f"{self.jobs_data_dir}{sanitize_filename(job)}/{sanitize_filename(location)}/{self.start_time}/"
 		os.makedirs(self.base_dir + "jobs", exist_ok=True)
 
 		# SQLite database
-		self.conn = sqlite3.connect(self.base_dir + "jobs.db")
+		self.conn = sqlite3.connect(self.jobs_data_dir + "jobs.db")
 		self.cursor = self.conn.cursor()
-		self.cursor.execute('''CREATE TABLE jobs (title TEXT, link TEXT, company_name TEXT, location TEXT, salary TEXT, short_description TEXT, date_posted TEXT, long_description TEXT, date_time_loaded TEXT, full_description_html TEXT)''')
+		self.cursor.execute('''CREATE TABLE IF NOT EXISTS jobs (title TEXT, link TEXT, company_name TEXT, location TEXT, salary TEXT, short_description TEXT, date_posted TEXT, long_description TEXT, date_time_loaded TEXT, full_description_html_path TEXT, search_term TEXT, search_location TEXT)''')
+		
+		# Load existing jobs into dictionary
+		self.jobs_dict = {}
+		self.cursor.execute("SELECT * FROM jobs")
+		for row in self.cursor.fetchall():
+			link = row[1]
+			self.jobs_dict[link] = Job(*row[:-2])
 
 	def get_long_description(self, url):
+		if url in self.jobs_dict:
+			return self.jobs_dict[url].long_description
 		self.browser.get(url)
 		long_description_element = WebDriverWait(self.browser, 10).until(EC.presence_of_element_located((By.ID, "jobDescriptionText")))
 		return long_description_element.text
@@ -89,14 +99,16 @@ class IndeedScraper:
 
 		# Get long descriptions
 		for job in job_instances:
-			print(f"Company:{job.company_name} Title:{job.title}")
-			job.long_description = self.get_long_description(job.link)
-			company_dir = f"{self.base_dir}jobs/{sanitize_filename(job.company_name)}/"
-			os.makedirs(company_dir, exist_ok=True)
-			with open(f"{company_dir}{sanitize_filename(job.title)} {datetime.now().strftime('%Y-%m-%d %H-%M-%S.%f')}.html", "w") as file:
-				file.write(self.browser.page_source)
-			self.cursor.execute("INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (job.title, job.link, job.company_name, job.location, job.salary, job.short_description, job.date_posted, job.long_description, datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f"), self.browser.page_source))
-			self.conn.commit()
+			if job.link not in self.jobs_dict:
+				job.long_description = self.get_long_description(job.link)
+				company_dir = f"{self.base_dir}jobs/{sanitize_filename(job.company_name)}/"
+				os.makedirs(company_dir, exist_ok=True)
+				html_path = f"{company_dir}{sanitize_filename(job.title)} {datetime.now().strftime('%Y-%m-%d %H-%M-%S.%f')}.html"
+				with open(html_path, "w") as file:
+					file.write(self.browser.page_source)
+				self.cursor.execute("INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (job.title, job.link, job.company_name, job.location, job.salary, job.short_description, job.date_posted, job.long_description, datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f"), html_path, self.job, self.location))
+				self.conn.commit()
+				self.jobs_dict[job.link] = job
 
 		return job_instances
 
