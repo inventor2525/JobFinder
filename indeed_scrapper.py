@@ -131,10 +131,21 @@ class IndeedScraper:
 
 # Main function
 if __name__ == "__main__":
-	scraper = IndeedScraper("Robotics Software Engineer", "Remote")
-	all_jobs = scraper.get_all_listings()
+	def get(role, location):
+		scraper = IndeedScraper("Robotics Software Engineer", "Remote")
+		all_jobs = scraper.get_all_listings()
+		scraper.close()
+		return all_jobs
+	all_jobs = get("Robotics Software Engineer", "Remote")
+	all_jobs = get("Software Engineer", "Remote")
+	all_jobs = get("machine learning engineer", "Remote")
+	all_jobs = get("game developer", "Remote")
+	
+	all_jobs = get("Software Engineer", "Grand Rapids Michigan")
+	all_jobs = get("Software Engineer", "Kalamazoo Michigan")
+	all_jobs = get("Software Engineer", "Holland Michigan")
+	
 	for job in all_jobs:
 		print(f"Job Title: {job.title}")
 		print(f"Short Description: {job.short_description}")
 		# print(f"Long Description: {job.long_description}\n")
-	scraper.close()
