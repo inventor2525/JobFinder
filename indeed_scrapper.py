@@ -137,7 +137,7 @@ class IndeedScraper:
 # Main function
 if __name__ == "__main__":
 	def get(role, location):
-		scraper = IndeedScraper("Robotics Software Engineer", "Remote")
+		scraper = IndeedScraper(role, location)
 		all_jobs = scraper.get_all_listings()
 		scraper.close()
 		return all_jobs
