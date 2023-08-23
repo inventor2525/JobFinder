@@ -7,17 +7,8 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.firefox.options import Options
 
-class Job:
-	def __init__(self, title, link, company_name, location, salary, short_description, date_posted):
-		self.title = title
-		self.link = link
-		self.company_name = company_name
-		self.location = location
-		self.salary = salary
-		self.short_description = short_description
-		self.date_posted = date_posted
-		self.long_description = None
-		
+from Job import Job
+	
 def sanitize_filename(filename):
 	return "".join(c for c in filename if c.isalnum() or c in (' ', '.', '_')).rstrip()
 
@@ -47,10 +38,24 @@ class IndeedScraper:
 		# Load existing jobs into dictionary
 		self.jobs_dict = {}
 		self.cursor.execute("SELECT * FROM jobs")
+		column_names = [description[0] for description in self.cursor.description]
 		for row in self.cursor.fetchall():
-			link = row[1]
-			self.jobs_dict[link] = Job(*row[:-2])
-
+			link = row[column_names.index('link')]
+			job_instance = Job.__new__(Job)
+			job_instance.title = row[column_names.index('title')]
+			job_instance.link = link
+			job_instance.company_name = row[column_names.index('company_name')]
+			job_instance.location = row[column_names.index('location')]
+			job_instance.salary = row[column_names.index('salary')]
+			job_instance.short_description = row[column_names.index('short_description')]
+			job_instance.date_posted = row[column_names.index('date_posted')]
+			job_instance.long_description = row[column_names.index('long_description')]
+			job_instance.date_time_loaded = row[column_names.index('date_time_loaded')]
+			job_instance.full_description_html_path = row[column_names.index('full_description_html_path')]
+			job_instance.search_term = row[column_names.index('search_term')]
+			job_instance.search_location = row[column_names.index('search_location')]
+			self.jobs_dict[link] = job_instance
+			
 	def get_long_description(self, url):
 		if url in self.jobs_dict:
 			return self.jobs_dict[url].long_description
