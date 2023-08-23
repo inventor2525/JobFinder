@@ -1,3 +1,5 @@
 *.html
 *.db
 geckodriver.log
+*.pyc
+*__pycache__*
