@@ -60,7 +60,7 @@ class IndeedScraper:
 		if url in self.jobs_dict:
 			return self.jobs_dict[url].long_description
 		self.browser.get(url)
-		long_description_element = WebDriverWait(self.browser, 10).until(EC.presence_of_element_located((By.ID, "jobDescriptionText")))
+		long_description_element = WebDriverWait(self.browser, 120).until(EC.presence_of_element_located((By.ID, "jobDescriptionText")))
 		return long_description_element.text
 
 	def get_10_listings(self, url):
@@ -70,7 +70,7 @@ class IndeedScraper:
 			file.write(self.browser.page_source)
 		self.page_num += 1
 
-		jobs = WebDriverWait(self.browser, 10).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "jobCard_mainContent")))
+		jobs = WebDriverWait(self.browser, 120).until(EC.presence_of_all_elements_located((By.CLASS_NAME, "jobCard_mainContent")))
 		job_instances = []
 		for job in jobs:
 			try:
@@ -105,15 +105,18 @@ class IndeedScraper:
 		# Get long descriptions
 		for job in job_instances:
 			if job.link not in self.jobs_dict:
-				job.long_description = self.get_long_description(job.link)
-				company_dir = f"{self.base_dir}jobs/{sanitize_filename(job.company_name)}/"
-				os.makedirs(company_dir, exist_ok=True)
-				html_path = f"{company_dir}{sanitize_filename(job.title)} {datetime.now().strftime('%Y-%m-%d %H-%M-%S.%f')}.html"
-				with open(html_path, "w") as file:
-					file.write(self.browser.page_source)
-				self.cursor.execute("INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (job.title, job.link, job.company_name, job.location, job.salary, job.short_description, job.date_posted, job.long_description, datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f"), html_path, self.job, self.location))
-				self.conn.commit()
-				self.jobs_dict[job.link] = job
+				try:
+					job.long_description = self.get_long_description(job.link)
+					company_dir = f"{self.base_dir}jobs/{sanitize_filename(job.company_name)}/"
+					os.makedirs(company_dir, exist_ok=True)
+					html_path = f"{company_dir}{sanitize_filename(job.title)} {datetime.now().strftime('%Y-%m-%d %H-%M-%S.%f')}.html"
+					with open(html_path, "w") as file:
+						file.write(self.browser.page_source)
+					self.cursor.execute("INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (job.title, job.link, job.company_name, job.location, job.salary, job.short_description, job.date_posted, job.long_description, datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f"), html_path, self.job, self.location))
+					self.conn.commit()
+					self.jobs_dict[job.link] = job
+				except:
+					print(f"Error getting job description for link {job.link}")
 
 		return job_instances
 
@@ -122,8 +125,11 @@ class IndeedScraper:
 		url = self.base_url
 		start_index = 0
 		while True:
-			jobs = self.get_10_listings(url)
-			all_jobs.extend(jobs)
+			try:
+				jobs = self.get_10_listings(url)
+				all_jobs.extend(jobs)
+			except:
+				print("Error getting 10 listings")
 			if not self.next_page_available:
 				break
 			start_index += 10
