@@ -7,7 +7,7 @@ Base = declarative_base()
 class Job(Base):
 	__tablename__ = 'jobs'
 
-	# id = Column(Integer, primary_key=True)
+	id = Column(Integer, primary_key=True)
 	title = Column(String)
 	link = Column(String)
 	company_name = Column(String)
@@ -16,7 +16,7 @@ class Job(Base):
 	short_description = Column(String)
 	date_posted = Column(String)
 	long_description = Column(String)
-	date_time_loaded = Column(DateTime)
+	date_time_loaded = Column(String)
 	full_description_html_path = Column(String)
 	search_term = Column(String)
 	search_location = Column(String)

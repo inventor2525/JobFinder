@@ -33,7 +33,7 @@ class IndeedScraper:
 		# SQLite database
 		self.conn = sqlite3.connect(self.jobs_data_dir + "jobs.db")
 		self.cursor = self.conn.cursor()
-		self.cursor.execute('''CREATE TABLE IF NOT EXISTS jobs (title TEXT, link TEXT, company_name TEXT, location TEXT, salary TEXT, short_description TEXT, date_posted TEXT, long_description TEXT, date_time_loaded TEXT, full_description_html_path TEXT, search_term TEXT, search_location TEXT)''')
+		self.cursor.execute('''CREATE TABLE IF NOT EXISTS jobs (id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT, link TEXT, company_name TEXT, location TEXT, salary TEXT, short_description TEXT, date_posted TEXT, long_description TEXT, date_time_loaded TEXT, full_description_html_path TEXT, search_term TEXT, search_location TEXT)''')
 		
 		# Load existing jobs into dictionary
 		self.jobs_dict = {}
