@@ -22,8 +22,8 @@ class Job(Base):
 	search_location = Column(String)
 
 class JobDatabase:
-	def __init__(self):
-		self.engine = create_engine('sqlite:///Job_Data/jobs.db')
+	def __init__(self, db_url="sqlite:///Job_Data/jobs.db"):
+		self.engine = create_engine(db_url)
 		self.create_jobs_table()
 
 	def create_jobs_table(self):
