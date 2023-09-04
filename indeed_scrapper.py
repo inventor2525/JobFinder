@@ -112,7 +112,7 @@ class IndeedScraper:
 					html_path = f"{company_dir}{sanitize_filename(job.title)} {datetime.now().strftime('%Y-%m-%d %H-%M-%S.%f')}.html"
 					with open(html_path, "w") as file:
 						file.write(self.browser.page_source)
-					self.cursor.execute("INSERT INTO jobs VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (job.title, job.link, job.company_name, job.location, job.salary, job.short_description, job.date_posted, job.long_description, datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f"), html_path, self.job, self.location))
+					self.cursor.execute("INSERT INTO jobs (title, link, company_name, location, salary, short_description, date_posted, long_description, date_time_loaded, full_description_html_path, search_term, search_location) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)", (job.title, job.link, job.company_name, job.location, job.salary, job.short_description, job.date_posted, job.long_description, datetime.now().strftime("%Y-%m-%d %H-%M-%S.%f"), html_path, self.job, self.location))
 					self.conn.commit()
 					self.jobs_dict[job.link] = job
 				except:
