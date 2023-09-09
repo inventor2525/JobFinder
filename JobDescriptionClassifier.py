@@ -8,13 +8,15 @@ from JobDatabase import JobDatabase, Job, JobSearchFilter, Question
 conv_db = Database("sqlite:///job_description_classifications.sql")
 
 model = None
+model2 = None
 local = False
 if local:
 	model = StableBeluga2("stabilityai/StableBeluga2")
 else:
 	model = OpenAI_LLM(model_name="gpt-3.5-turbo")
+	model2 = OpenAI_LLM(model_name="gpt-3.5-turbo-16k")
 	
-bot = ChatBot(model, conv_db)
+bot = ChatBot(model, conv_db, fallback_model=model2)
 
 
 
@@ -30,6 +32,8 @@ questions = [
 	Question("MachineLearning", "Machine Learning mentioned", "Does the job mention machine learning in any capacity", "Yes/No"),
 	Question("Entrepreneurial", "Entrepreneurial Mindset", "Does the job mention any sort of need or desire for a entrepreneurial or cross disciplinary mind set", "Yes/No"),
 	Question("SmallCompany", "Small Company/Startup", "Is there any mention of this being for a small company or startup", "Yes/No"),
+	Question("CompanyDescription", "Company Description", "Does the job description mention anything about the company and what they do", "Yes/No"),
+	Question("IsDescriptive", "Descriptive", "Is the job description descriptive (containing long paragraphs of text) rather than just being a list of requirements", "Yes/No"),
 	Question("WorkSummary", "Work Summary", "A brief summary of the kind of work this job might entail", "Summary"),
 	Question("SkillsRequired", "Skills Required", "A list of the skills required for this job, in order of importance.", "List of skills, comma separated")
 ]
