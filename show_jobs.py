@@ -1,8 +1,10 @@
 from sqlalchemy import create_engine, and_
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, aliased
 import pandas as pd
 from job_questions import *
 from JobDatabase import Job, JobSearchFilter
+
+from datetime import datetime, timedelta
 
 # Initialize SQLAlchemy engine and session
 JobSearchFilter.add_dynamic_columns(questions)
@@ -10,51 +12,40 @@ engine = create_engine("sqlite:///Job_Data/jobs.db")
 Session = sessionmaker(bind=engine)
 session = Session()
 
-# Step 1: Filter tables
-filtered_jobs = session.query(Job).all()
-filtered_filters = session.query(JobSearchFilter).filter(
+# Step 1: Inner join and Step 2: Filter
+JobFilter = aliased(JobSearchFilter)
+query = session.query(Job, JobFilter).join(JobFilter, Job.link == JobFilter.job_link).filter(
     and_(
-        JobSearchFilter.Degree != 'Yes',
-        JobSearchFilter.PLC != 'Yes',
-        JobSearchFilter.WebDev != 'Yes'
+        JobFilter.Degree != 'Yes',
+        JobFilter.PLC != 'Yes',
+        JobFilter.Education != 'Yes',
+        JobFilter.WebDev != 'Yes'
     )
 ).all()
 
-# Step 2: Inner join tables
-joined_data = []
-for job in filtered_jobs:
-    for filter_ in filtered_filters:
-        if job.link == filter_.job_link:
-            row = {
-                'actual_date_posted': job.actual_date_posted,
-                'SmallCompany': filter_.SmallCompany,
-                'Entrepreneurial': filter_.Entrepreneurial,
-                'IsDescriptive': filter_.IsDescriptive,
-                'CompanyDescription': filter_.CompanyDescription,
-                'Robotics': filter_.Robotics,
-                'Unity3D': filter_.Unity3D
-            }
-            joined_data.append(row)
-
 # Step 3: Load into Pandas DataFrame
-df = pd.DataFrame(joined_data)
+data = [{**job.__dict__, **filter_.__dict__} for job, filter_ in query]
+df = pd.DataFrame(data)
 
-# Step 4: Sort DataFrame
-sort_order = {
-    'Yes': 0,
-    'No': 1
-}
+# Step 4: Calculate actual_date_posted
+df['actual_date_posted'] = df['date_time_loaded'].apply(lambda x: datetime.strptime(x, "%Y-%m-%d %H-%M-%S.%f"))
 
-sort_columns = ['SmallCompany', 'Entrepreneurial', 'IsDescriptive', 'CompanyDescription', 'Robotics', 'Unity3D', 'actual_date_posted']
+# Step 5: Sort DataFrame
+sort_order = {'Yes': 0, 'No': 1}
+sort_columns = ['SmallCompany', 'Entrepreneurial', 'IsDescriptive', 'CompanyDescription', 'Robotics', 'Unity3D', 'MachineLearning', 'EmbeddedSystems', 'actual_date_posted']
 df.sort_values(
     by=sort_columns,
     key=lambda col: col.map(sort_order) if col.name != 'actual_date_posted' else col,
-    ascending=[True, True, True, True, True, True, True],
+    ascending=[True, True, True, True, True, True, True, True, True],
     inplace=True
 )
 
-# Step 5: Return sorted DataFrame
-print(df)
+# Step 6: Drop long_description
+df.drop(columns=['long_description'], inplace=True)
 
-# Step 6: Save to CSV
+# Filter out jobs that are too old:
+df = df[df['actual_date_posted'] > datetime.now() - timedelta(days=10)]
+
+# order columns:
+df = df[['search_term', 'search_location', 'actual_date_posted', 'title', 'company_name', 'salary', 'location', 'Entrepreneurial', 'SmallCompany', 'Robotics', 'Unity3D', 'EmbeddedSystems', 'MachineLearning', 'CompanyDescription', 'IsDescriptive', 'WorkSummary', 'SkillsRequired', 'job_link', 'full_description_html_path']]
 df.to_csv('filtered_jobs.csv', index=False)
