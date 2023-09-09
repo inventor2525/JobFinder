@@ -1,4 +1,4 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey
+from sqlalchemy import create_engine, Column, Integer, String, DateTime, Text, ForeignKey, Boolean
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 
@@ -68,6 +68,15 @@ class JobSearchFilter(Base):
 	def add_dynamic_columns(cls, questions: List[Question]):
 		for q in questions:
 			setattr(cls, q.column_name, Column(Text))
+
+class JobNotes(Base):
+    __tablename__ = 'job_notes'
+    id = Column(Integer, primary_key=True)
+    job_link = Column(String, ForeignKey('jobs.link'))
+    star_rating = Column(Integer)
+    go_no_go = Column(Boolean)
+    notes = Column(Text)
+    no_go_reason = Column(Text)
 	
 class JobDatabase:
 	def __init__(self, db_url="sqlite:///Job_Data/jobs.db"):
