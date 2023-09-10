@@ -2,13 +2,14 @@ from sqlalchemy import create_engine, and_
 from sqlalchemy.orm import sessionmaker, aliased
 import pandas as pd
 from job_questions import *
-from JobDatabase import Job, JobSearchFilter, JobNotes
+from JobDatabase import Job, JobSearchFilter, JobNotes, Base
 
 from datetime import datetime, timedelta
 
 # Initialize SQLAlchemy engine and session
 JobSearchFilter.add_dynamic_columns(questions)
 engine = create_engine("sqlite:///Job_Data/jobs.db")
+Base.metadata.create_all(engine)
 Session = sessionmaker(bind=engine)
 session = Session()
 
@@ -51,16 +52,38 @@ df = df[['search_term', 'search_location', 'actual_date_posted', 'title', 'compa
 df.to_csv('filtered_jobs.csv', index=False)
 
 
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QTextEdit, QPushButton, QSpinBox, QScrollArea, QFrame, QSizePolicy
 from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QCheckBox, QTextEdit, QPushButton, QSpinBox, QScrollArea, QFrame
+from sqlalchemy.orm.exc import NoResultFound
 import sys
 
 class JobRatingWindow(QWidget):
-	def __init__(self, job_data, session):
+	def __init__(self, df, session, start_index=0):
 		super().__init__()
-		self.job_data = job_data
+		self.df = df
 		self.session = session
+		self.current_index = start_index
 		self.initUI()
+
+	def load_job_data(self):
+		self.job_data = self.df.iloc[self.current_index]
+		self.job_title_company.setText(f"{self.job_data['title']} at {self.job_data['company_name']}")
+		self.job_date_salary.setText(f"Posted: {self.job_data['actual_date_posted']} | Salary: {self.job_data['salary']}")
+		self.job_term_location.setText(f"Search Term: {self.job_data['search_term']} | Location: {self.job_data['search_location']}")
+		self.long_description.setText(self.job_data['long_description'])
+		
+		# Load existing notes from the database
+		existing_note = self.session.query(JobNotes).filter_by(job_link=self.job_data['job_link']).first()
+		if existing_note:
+			self.star_rating.setValue(existing_note.star_rating)
+			self.go_no_go.setChecked(existing_note.go_no_go)
+			self.notes.setText(existing_note.notes)
+			self.no_go_reason.setText(existing_note.no_go_reason if existing_note.no_go_reason else "")
+		else:
+			self.star_rating.setValue(1)
+			self.go_no_go.setChecked(False)
+			self.notes.clear()
+			self.no_go_reason.clear()
 
 	def initUI(self):
 		layout = QVBoxLayout()
@@ -70,13 +93,13 @@ class JobRatingWindow(QWidget):
 		layout.addWidget(self.filter_checkbox)
 
 		# Job information
-		job_info_layout = QVBoxLayout()
-		job_title_company = QLabel(f"{self.job_data['title']} at {self.job_data['company_name']}")
-		job_date_salary = QLabel(f"Posted: {self.job_data['actual_date_posted']} | Salary: {self.job_data['salary']}")
-		job_term_location = QLabel(f"Search Term: {self.job_data['search_term']} | Location: {self.job_data['search_location']}")
-		job_info_layout.addWidget(job_title_company)
-		job_info_layout.addWidget(job_date_salary)
-		job_info_layout.addWidget(job_term_location)
+		self.job_info_layout = QVBoxLayout()
+		self.job_title_company = QLabel()
+		self.job_date_salary = QLabel()
+		self.job_term_location = QLabel()
+		self.job_info_layout.addWidget(self.job_title_company)
+		self.job_info_layout.addWidget(self.job_date_salary)
+		self.job_info_layout.addWidget(self.job_term_location)
 
 		# Scrollable long description
 		scroll = QScrollArea()
@@ -84,15 +107,15 @@ class JobRatingWindow(QWidget):
 		frame = QFrame(scroll)
 		scroll.setWidget(frame)
 		scroll_layout = QVBoxLayout(frame)
-		long_description = QLabel(self.job_data['long_description'])
-		long_description.setWordWrap(True)
-		scroll_layout.addWidget(long_description)
+		self.long_description = QLabel()
+		self.long_description.setWordWrap(True)
+		scroll_layout.addWidget(self.long_description)
 
-		job_info_layout.addWidget(scroll)
-		layout.addLayout(job_info_layout)
+		self.job_info_layout.addWidget(scroll)
+		layout.addLayout(self.job_info_layout)
 
 		# Job notes section
-		notes_layout = QVBoxLayout()
+		self.notes_layout = QVBoxLayout()
 		self.star_rating = QSpinBox()
 		self.star_rating.setRange(1, 5)
 		self.go_no_go = QCheckBox('Go/No-Go')
@@ -100,38 +123,63 @@ class JobRatingWindow(QWidget):
 		self.no_go_reason = QTextEdit()
 		self.no_go_reason.setVisible(False)
 		self.confirm_button = QPushButton('Confirm')
+		self.next_button = QPushButton('Next')
+		self.prev_button = QPushButton('Previous')
 
-		notes_layout.addWidget(self.star_rating)
-		notes_layout.addWidget(self.go_no_go)
-		notes_layout.addWidget(self.notes)
-		notes_layout.addWidget(self.no_go_reason)
-		notes_layout.addWidget(self.confirm_button)
+		button_layout = QHBoxLayout()
+		button_layout.addWidget(self.prev_button)
+		button_layout.addWidget(self.next_button)
+		button_layout.addWidget(self.confirm_button)
 
-		layout.addLayout(notes_layout)
+		self.notes_layout.addWidget(self.star_rating)
+		self.notes_layout.addWidget(self.go_no_go)
+		self.notes_group = QHBoxLayout()
+		self.notes_group.addWidget(self.notes)
+		self.notes_group.addWidget(self.no_go_reason)
+		self.notes_layout.addLayout(self.notes_group)
+		self.notes_layout.addLayout(button_layout)
+
+		layout.addLayout(self.notes_layout)
 
 		# Connect signals
 		self.go_no_go.toggled.connect(self.no_go_reason.setVisible)
 		self.confirm_button.clicked.connect(self.save_notes)
+		self.next_button.clicked.connect(self.next_job)
+		self.prev_button.clicked.connect(self.prev_job)
 
 		self.setLayout(layout)
+		self.load_job_data()
 		self.show()
 
 	def save_notes(self):
-		# Save the notes to the database
-		job_note = JobNotes(
-			job_link=self.job_data['job_link'],
-			star_rating=self.star_rating.value(),
-			go_no_go=self.go_no_go.isChecked(),
-			notes=self.notes.toPlainText(),
-			no_go_reason=self.no_go_reason.toPlainText() if self.go_no_go.isChecked() else None
-		)
-		self.session.add(job_note)
+		existing_note = self.session.query(JobNotes).filter_by(job_link=self.job_data['job_link']).first()
+		if existing_note:
+			existing_note.star_rating = self.star_rating.value()
+			existing_note.go_no_go = self.go_no_go.isChecked()
+			existing_note.notes = self.notes.toPlainText()
+			existing_note.no_go_reason = self.no_go_reason.toPlainText() if self.go_no_go.isChecked() else None
+		else:
+			job_note = JobNotes(
+				job_link=self.job_data['job_link'],
+				star_rating=self.star_rating.value(),
+				go_no_go=self.go_no_go.isChecked(),
+				notes=self.notes.toPlainText(),
+				no_go_reason=self.no_go_reason.toPlainText() if self.go_no_go.isChecked() else None
+			)
+			self.session.add(job_note)
 		self.session.commit()
+
+	def next_job(self):
+		if self.current_index < len(self.df) - 1:
+			self.current_index += 1
+			self.load_job_data()
+
+	def prev_job(self):
+		if self.current_index > 0:
+			self.current_index -= 1
+			self.load_job_data()
 
 # Initialize the PyQt application
 app = QApplication(sys.argv)
-
-# Iterate through the jobs in the Pandas DataFrame
-for index, row in df.iterrows():
-	window = JobRatingWindow(row, session)
-	sys.exit(app.exec_())
+window = JobRatingWindow(df, session)
+sys.exit(app.exec_())
